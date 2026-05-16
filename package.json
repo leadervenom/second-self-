@@ -1,12 +1,14 @@
 {
-  "name": "landing-page",
+  "name": "sai-desktop-assistant",
   "version": "1.0.0",
-  "description": "",
+  "description": "S.A.I Windows desktop assistant",
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "desktop": "electron electron/main.cjs"
   },
   "dependencies": {
     "agentation": "^3.0.2",
@@ -21,10 +23,13 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "electron": "^42.1.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.10"
   }
 }
