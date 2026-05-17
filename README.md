@@ -1,201 +1,379 @@
-# Second Self
+# S.A.I (Second Self) - Windows Fork
 
-A background pipeline that builds a multi-layered psychological and behavioral profile from your Gmail, Google Calendar, and web presence. The output becomes the "primer" for a digital twin agent that acts on your behalf.
+This repository is a **Windows-adapted fork** of the original project by `23jomo`.
 
-## Architecture
+This fork focuses on a practical goal:
+- run reliably on Windows
+- keep a lightweight assistant loop (onboard + chat + safe local actions)
+- skip macOS-specific systems and heavy deep-memory features during normal use
 
-Second Self builds a 6-layer memory system. This branch implements Layers 1-4:
+---
 
-```
-Layer 1  identity.md         Who you are — role, voice, interests, behavioral patterns
-Layer 2  preferences.md      How you work — schedule, tools, communication style, focus areas
-Layer 2.5 relationships.json  Who you know — contact graph with closeness scores
-Layer 3  (reserved)          Contextual memory (future)
-Layer 4  episodic.md         What happened — timestamped life events extracted from email history
-```
+## What This Project Is (Current Reality)
 
-All profile files are written to `~/.secondself/` for consumption by the twin agent.
+S.A.I on this branch is a **Windows desktop/web assistant runtime** made of:
+- **Python FastAPI backend** (`src/server.py`)
+- **Next.js frontend** (`src/app/*`)
+- **Electron shell** (`electron/main.cjs`) for desktop packaging
 
-## Pipeline
+The active flow is:
+1. User opens UI (web or Electron)
+2. UI calls backend `/onboard` and `/chat`
+3. Backend returns a demo profile and handles chat/tool routing
+4. Optional Gemini responses are used when API key is present
 
-```
-Gmail OAuth ──> Fetch Emails ──> Clean ──> Analyze (parallel) ──> Build Profiles
-                                             |
-Google Auth ──> Calendar Fetch ─────────────┘
-                                             |
-              Tavily Search ─────────────────┘
-```
+---
 
-### Analysis passes (Layer 1)
+## What Works
 
-| Module | Input | Output |
-|--------|-------|--------|
-| `voice_analyzer` | Sent emails | Voice profile — tone, openers, sign-offs, code-switching |
-| `topic_extractor` | All emails | Top 15 recurring topics with frequency and confidence |
-| `behavior_analyzer` | All emails + threads | Reply speed, active hours, initiation ratio |
-| `relationship_mapper` | All emails | Contact graph — inner circle, colleagues, acquaintances |
-| `tavily_synthesizer` | Web search results | Public profile — role, company, social links |
+### Core runtime
+- Windows setup script: `setup-windows.ps1`
+- Backend start script: `start-backend.ps1`
+- Frontend start script: `start-frontend.ps1`
+- Health endpoint: `GET /health`
+- Onboard endpoint: `POST /onboard`
+- Chat endpoint: `POST /chat`
 
-### Layer 2: Preferences
+### Local tool actions (when enabled)
+If `ALLOW_LOCAL_TOOLS=true`, chat can trigger safe local actions:
+- open URLs (Google, YouTube, GitHub, ChatGPT)
+- open common apps from an allowlist (Notepad, VS Code, Chrome, Edge, etc.)
+- search local folders/files under a safe root
+- open matching folders/files (optionally in VS Code)
+- launch a workspace bundle (`open my workspace`) using `.env` toggles
 
-`build/preferences_builder.py` synthesizes work preferences from behavior data, calendar events, topics, and relationships via an LLM call. Outputs schedule patterns, recurring commitments, focus areas, communication style, and inferred tools.
+### Packaging path
+- PyInstaller backend entrypoint exists (`backend_launcher.py`, `sai-backend.spec`)
+- Electron build config packages backend exe + static frontend into `release/`
 
-### Layer 4: Episodic Memory
+---
 
-`analyze/event_extractor.py` extracts life events (job changes, travel, education milestones) from email history using parallel per-year workers with `ProcessPoolExecutor`. Events are written to `episodic.md` with their original timestamps.
+## What Is Not Working / Intentionally Disabled
 
-`utils/episodic_writer.py` provides a file-locked append API for the twin agent to record events at runtime.
+### Disabled in this Windows fork (by design)
+- **Voice feature is not active** in the Windows runtime
+- **Email reading/sending flow is not active** in the current runtime path
+- Original macOS notch app stack is not part of this Windows runtime
 
-## Project Structure
+### Not wired into active server path
+These modules exist but are not the default runtime path for `start-backend.ps1`:
+- deep Gmail/Calendar/Tavily memory pipeline
+- rich profile generation + full "digital twin memory layers"
+- old auth/session routes used in earlier server versions
 
-```
-second-self/
-├── main.py                        # Pipeline orchestrator
-├── auth/
-│   ├── firebase_auth.py           # Firebase token exchange
-│   ├── gmail_auth.py              # Google credentials from access token
-│   └── web_oauth.py               # FastAPI server for browser-based OAuth
-├── fetch/
-│   ├── gmail_fetch.py             # Gmail API fetch with 24h cache
-│   ├── tavily_fetch.py            # Tavily web search (3 queries)
-│   └── calendar_fetch.py          # Google Calendar fetch (90d past + 30d future)
-├── clean/
-│   └── email_cleaner.py           # HTML stripping, signature removal, deduplication
-├── analyze/
-│   ├── voice_analyzer.py          # Writing style analysis on sent emails
-│   ├── topic_extractor.py         # Topic/interest extraction via LLM
-│   ├── behavior_analyzer.py       # Response patterns and habits
-│   ├── relationship_mapper.py     # Contact scoring and clustering
-│   ├── tavily_synthesizer.py      # Public profile extraction via LLM
-│   └── event_extractor.py         # Life event extraction via parallel LLM workers
-├── build/
-│   ├── identity_builder.py        # Assembles identity.md (Layer 1)
-│   └── preferences_builder.py     # Assembles preferences.md (Layer 2)
-├── utils/
-│   └── episodic_writer.py         # File-locked episodic memory writer (Layer 4)
-├── static/
-│   └── login.html                 # Google Identity Services auth page
-├── output/                        # Local cache of all pipeline outputs
-└── tests/                         # 430+ unit tests
-```
+### UI note
+- The repo contains a Next.js UI for this branch.
+- If you are using your own external/custom UI, treat this bundled UI as reference/testing UI.
 
-## Live System
+---
 
-The identity pipeline feeds a live digital twin that controls a macOS desktop.
+## Hidden but Important Features
 
-```
-PRIMARY SESSION (you)                    SECONDSELF SESSION (background)
+These are easy to miss but useful:
+- **Safe path guardrails**: local file/folder opening is constrained by `SAFE_SEARCH_ROOT`
+- **Search limits**: `MAX_SEARCH_DEPTH` and `MAX_SEARCH_ITEMS` prevent runaway scans
+- **Command routing layers**:
+  - deterministic phrase router first
+  - optional AI JSON tool router second
+  - normal Gemini chat fallback last
+- **Session URL memory**: supports follow-up commands like `open it`
+- **Workspace macro flags**:
+  - `WORKSPACE_OPEN_YOUTUBE`
+  - `WORKSPACE_OPEN_VSCODE`
+  - `WORKSPACE_OPEN_CHATGPT`
+  - `WORKSPACE_OPEN_GITHUB`
+  - `WORKSPACE_OPEN_ELEARNING`
 
- SecondSelf.app (SwiftUI notch app)      agent-server :8421
-   ├─ orchestrator :8420                   ├─ MJPEG desktop stream
-   │   ├─ Claude API (Sonnet 4)            ├─ Desktop tools (click, type, etc.)
-   │   └─ Tool routing                     └─ Quartz screen capture
-   ├─ VNC PiP (live desktop feed)
-   └─ Chat (SSE streaming)              Chrome :9222 (CDP for browser-use)
-                                         Vine Server :5901 (optional VNC)
-```
+---
 
-### Quick Start (already provisioned)
+## Quick Start (Windows)
 
-```bash
-# 1. Launch the app (starts orchestrator automatically)
-cd SecondSelf && swift build && swift run
+From project root:
 
-# 2. Cmd+Shift+T to toggle the chat panel
-# 3. Talk to your twin
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\setup-windows.ps1
 ```
 
-### First-Time Setup
+Start backend:
 
-```bash
-# 1. Provision the secondself user account and services
-./setup/provision.sh
-
-# 2. Switch to secondself user session (click user icon in menu bar)
-#    Grant Screen Recording to python3:
-python3 -c "import Quartz; ref = Quartz.CGWindowListCreateImage(Quartz.CGRectInfinite, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, Quartz.kCGWindowImageDefault); print(ref)"
-#    Click Allow when macOS prompts, then switch back to your account
-
-# 3. Restart agent-server to pick up the permission
-./setup/restart-agent.sh
-
-# 4. Verify everything works
-./setup/smoke-test.sh
+```powershell
+.\start-backend.ps1
 ```
 
-### Common Commands
+Start frontend in a new terminal:
 
-| Command | What it does |
-|---------|-------------|
-| `cd SecondSelf && swift build && swift run` | Launch the app |
-| `./setup/smoke-test.sh` | Test all services |
-| `./setup/restart-agent.sh` | Restart agent-server (copies latest code) |
-| `./setup/update-agent-server.sh` | Update agent-server code + restart |
-| `open -a TigerVNC --args localhost:5901` | View secondself's desktop |
-| `curl -s http://localhost:8421/health \| python3 -m json.tool` | Agent server health |
-| `sudo kill $(sudo lsof -ti :8420) 2>/dev/null` | Kill stale orchestrator |
-
-### Environment Variables
-
-Create a `.env` file:
-
-```
-ANTHROPIC_API_KEY=
-TAVILY_API_KEY=
-CLAUDE_MODEL=claude-sonnet-4-20250514
-FIREBASE_API_KEY=
-FIREBASE_AUTH_DOMAIN=
-FIREBASE_PROJECT_ID=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+```powershell
+.\start-frontend.ps1
 ```
 
-### Ports
+Open:
 
-| Port | Service | Session |
-|------|---------|---------|
-| 8420 | Orchestrator (Claude API bridge) | Primary (launched by app) |
-| 8421 | Agent Server (desktop tools + MJPEG stream) | secondself (LaunchAgent) |
-| 5901 | Vine Server VNC (optional) | secondself (LaunchAgent) |
-| 9222 | Chrome DevTools Protocol | secondself (LaunchAgent) |
-
-## Identity Pipeline
-
-### Full pipeline
-
-```bash
-python main.py
+```text
+http://localhost:3000
 ```
 
-Runs all layers: Gmail fetch, Tavily search, email cleaning, all analyzers in parallel, identity build, event extraction, calendar fetch, and preferences synthesis.
+Optional backend check:
 
-### Flags
-
-| Flag | Description |
-|------|-------------|
-| `--dry-run` | Run pipeline without writing to `~/.secondself/` |
-| `--no-cache` | Bypass all caches and re-fetch from APIs |
-| `--tavily-only` | Skip Gmail, build identity from Tavily web search only |
-| `--memory-only` | Skip Gmail fetch and Layer 1 analyzers, only refresh Layer 2 + 4 |
-| `--verbose` | Enable DEBUG logging |
-
-## Output
-
-After a successful run:
-
-```
-~/.secondself/
-├── identity.md          # Layer 1 — who you are
-├── preferences.md       # Layer 2 — how you work
-└── episodic.md          # Layer 4 — what happened
+```powershell
+.\test-backend.ps1
 ```
 
-## Tests
+---
 
-```bash
-python -m pytest tests/ -v
+## Build Windows Desktop App
+
+Generated desktop files are **not committed** to GitHub.
+
+Do **not** commit generated build outputs such as:
+
+```text
+release/
+release2/
+out/
+dist/
+installer-output/
+*.exe
+*.asar
+*.zip
+*.dll
+*.pak
 ```
 
-## License
+Each developer must build the Windows app locally after cloning the repository.
 
-Private.
+---
+
+### 1. Setup
+
+From the project root, run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\setup-windows.ps1
+```
+
+This installs the required Python and Node dependencies.
+
+---
+
+### 2. Configure `.env`
+
+Create `.env`:
+
+```powershell
+copy .env.example .env
+```
+
+If `.env.example` does not exist, use the Windows demo file instead:
+
+```powershell
+copy .env.windows.demo .env
+```
+
+Then edit the file:
+
+```powershell
+notepad .env
+```
+
+Minimum values:
+
+```env
+HOST=127.0.0.1
+PORT=8000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
+
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+
+ALLOW_LOCAL_TOOLS=true
+SAFE_SEARCH_ROOT=C:\Users
+GITHUB_USERNAME=yourgithubusername
+```
+
+Each user should use their own Gemini API key.
+
+---
+
+### 3. Build the app
+
+Run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\build-windows.ps1
+```
+
+This creates:
+
+```text
+dist\sai-backend.exe
+out\
+release\win-unpacked\S.A.I.exe
+```
+
+---
+
+### 4. Run the app
+
+Run:
+
+```powershell
+.\release\win-unpacked\S.A.I.exe
+```
+
+If the app launches correctly, S.A.I should start its packaged backend and packaged frontend automatically.
+
+---
+
+### 5. Share the app
+
+Do **not** send only:
+
+```text
+S.A.I.exe
+```
+
+The `.exe` depends on the files beside it inside `win-unpacked`.
+
+Zip the whole `win-unpacked` folder:
+
+```powershell
+Compress-Archive -Path .\release\win-unpacked\* -DestinationPath .\SAI-windows-test.zip -Force
+```
+
+Send:
+
+```text
+SAI-windows-test.zip
+```
+
+The user must:
+
+```text
+1. Extract the zip fully.
+2. Open the extracted folder.
+3. Run S.A.I.exe from inside that folder.
+```
+
+---
+
+## If Build Fails Because `app.asar` Is Locked
+
+This usually means S.A.I, Electron, Node, or the backend is still running.
+
+Close S.A.I first.
+
+Then run:
+
+```powershell
+taskkill /IM "S.A.I.exe" /F
+taskkill /IM "electron.exe" /F
+taskkill /IM "sai-backend.exe" /F
+taskkill /IM "node.exe" /F
+```
+
+Then rebuild:
+
+```powershell
+.\build-windows.ps1
+```
+
+If it still fails, restart the laptop and run `build-windows.ps1` before opening S.A.I.
+
+---
+
+## Environment (Practical)
+
+Minimum useful keys:
+
+```env
+HOST=127.0.0.1
+PORT=8000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
+ALLOW_LOCAL_TOOLS=true
+SAFE_SEARCH_ROOT=C:\Users\<you>
+```
+
+For model responses:
+
+```env
+GEMINI_API_KEY=your_key
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+You can change the model if needed, but stronger models may cost more.
+
+If `GEMINI_API_KEY` is missing, chat still runs but returns a "key not connected" style response when it needs model output.
+
+---
+
+## API Summary
+
+- `GET /health`
+  - status, Gemini connection flag, model name, local-tools flag, safe root
+- `POST /onboard`
+  - returns a Windows demo profile object
+- `POST /chat`
+  - executes deterministic/AI-routed safe actions or falls back to Gemini text response
+
+---
+
+## Project Structure (Important Files)
+
+- `src/server.py` - active Windows backend
+- `electron/main.cjs` - Electron startup + process orchestration
+- `src/app/*` - Next.js UI routes
+- `src/components/wizard/*` - onboarding flow UI
+- `src/components/chat/*` - chat UI
+- `backend_launcher.py` - PyInstaller backend entrypoint
+- `setup-windows.ps1` - dependency/bootstrap script
+- `build-windows.ps1` - builds backend exe, static frontend, and Electron unpacked app
+- `start-backend.ps1` - backend runner
+- `start-frontend.ps1` - frontend runner
+- `src/server_original.py` and `src/server_before_*.py` - legacy/transition snapshots
+
+---
+
+## Commit Source Files Only
+
+After updating the build script and README, commit only source/config files:
+
+```powershell
+git add README.md build-windows.ps1 .gitignore
+git commit -m "Add Windows build script and build instructions"
+git push origin dev
+```
+
+Do **not** commit generated app files such as:
+
+```text
+release/
+out/
+dist/
+SAI-windows-test.zip
+S.A.I.exe
+app.asar
+```
+
+The GitHub repository should contain source code only. Built apps should be shared through GitHub Releases, Google Drive, OneDrive, or as a zipped `win-unpacked` folder.
+
+---
+
+## Current Status Summary
+
+This fork is best described as:
+- a **working Windows assistant shell**
+- with **safe local actions + optional Gemini chat**
+- while **voice/email deep features are currently out of runtime scope**
+- and **legacy deep-memory/original-platform modules kept in repo but not actively wired**
+
+---
+
+## Credits
+
+- Original upstream concept and codebase: `23jomo`
+- This branch: Windows-focused adaptation and runtime simplification

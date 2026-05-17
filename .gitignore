@@ -60,3 +60,16 @@ node_modules/
 npm-debug.log*
 .vercel
 .DS_Store
+
+
+# Build outputs
+release/
+release2/
+out/
+dist/
+installer-output/
+*.exe
+*.zip
+*.asar
+*.dll
+*.pak
