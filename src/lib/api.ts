@@ -1,7 +1,12 @@
-// API client for the FastAPI backend (proxied through /api)
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 export interface SecondSelfProfile {
-  identity: { name: string; role: string; company: string };
+  identity: {
+    name: string;
+    role: string;
+    company: string;
+  };
   voice: {
     formality: string;
     avg_email_length: string;
@@ -18,7 +23,7 @@ export interface SecondSelfProfile {
   };
   context: {
     active_projects: string[];
-    top_collaborators: string[];
+    top_collaborators?: string[];
     current_priorities: string[];
   };
 }
@@ -51,36 +56,55 @@ export interface AuthSession {
   name?: string;
 }
 
+// Packaged app does not use Next.js auth API routes.
 export async function getAuthSession(): Promise<AuthSession> {
-  const res = await fetch("/api/auth/status");
-  if (!res.ok) return { authenticated: false };
-  return res.json();
+  return { authenticated: false };
 }
 
 export async function postOnboard(
   name: string,
   email: string,
   context: string,
-  sessionId: string,
+  sessionId: string
 ): Promise<OnboardResponse> {
-  const res = await fetch("/api/onboard", {
+  const res = await fetch(`${BACKEND_URL}/onboard`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, context, session_id: sessionId }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      email,
+      context,
+      session_id: sessionId,
+    }),
   });
-  if (!res.ok) throw new Error(await res.text());
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
   return res.json();
 }
 
 export async function postChat(
   message: string,
-  sessionId: string,
+  sessionId: string
 ): Promise<ChatResponse> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(`${BACKEND_URL}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message,
+      session_id: sessionId,
+    }),
   });
-  if (!res.ok) throw new Error(await res.text());
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
   return res.json();
 }
